@@ -26,6 +26,7 @@ async function run() {
 
         const taskCollection = client.db("taskFlowDB").collection("tasks");
         const userCollection = client.db("taskFlowDB").collection("users");
+        const notificationCollection = client.db("taskFlowDB").collection("notification");
 
         // insert task
         app.post('/task', async (req, res) => {
@@ -74,10 +75,53 @@ async function run() {
         })
 
         // delete task
-        app.delete('/task/:id', async(req, res)=>{
+        app.delete('/task/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await taskCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        // notification
+        app.post('/notifications/:email', async (req, res) => {
+            const task = req.body;
+            const result = await taskCollection.insertOne(task);
+            if (task.assignedEmail) {
+                const notification = {
+                    receiverEmail: task.assignedEmail,
+                    message: `You have been assigned a new task: "${task.title}"`,
+                    taskId: result.insertedId,
+                    isRead: false,
+                    createdAt: new Date()
+                };
+                await notificationCollection.insertOne(notification);
+            }
+            res.send(result);
+        });
+
+        // show notification
+        app.get('/notifications', async (req, res) => {
+            const email = req.query.email;
+            if (!email) {
+                return res.status(400).send({ message: 'Email is required' });
+            }
+            const notifications = await notificationCollection
+                .find({ receiverEmail: email })
+                .sort({ createdAt: -1 })
+                .toArray();
+            res.send(notifications);
+        });
+
+        // update notification isRate
+        app.put('/notification/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    isRead: true
+                }
+            }
+            const result = await notificationCollection.updateOne(filter, updateDoc);
             res.send(result);
         })
 
