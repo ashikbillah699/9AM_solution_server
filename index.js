@@ -9,7 +9,6 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.j8csd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -23,7 +22,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-
         const taskCollection = client.db("taskFlowDB").collection("tasks");
         const userCollection = client.db("taskFlowDB").collection("users");
         const notificationCollection = client.db("taskFlowDB").collection("notification");
@@ -125,8 +123,6 @@ async function run() {
             res.send(result);
         })
 
-
-
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
@@ -134,7 +130,6 @@ async function run() {
     }
 }
 run().catch(console.dir);
-
 
 app.get('/', (req, res) => {
     res.send('Welcome to TaskFlow server')
