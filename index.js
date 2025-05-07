@@ -84,6 +84,7 @@ async function run() {
         app.post('/notifications/:email', async (req, res) => {
             const task = req.body;
             const result = await taskCollection.insertOne(task);
+
             if (task.assignedEmail) {
                 const notification = {
                     receiverEmail: task.assignedEmail,
