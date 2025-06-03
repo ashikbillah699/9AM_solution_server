@@ -26,31 +26,48 @@ async function run() {
         const userCollection = client.db("taskFlowDB").collection("users");
         const notificationCollection = client.db("taskFlowDB").collection("notification");
 
-        // insert task
-        app.post('/task', async (req, res) => {
-            const reciveData = req.body;
-            const result = await taskCollection.insertOne(reciveData);
-            res.send(result);
-        })
-
-        // insert user
+        // post User data 
         app.post('/user', async (req, res) => {
-            const reciveData = req.body;
-            const result = await userCollection.insertOne(reciveData);
-            res.send(result);
-        })
+            try {
+                const { userName, photoURL, email, password, shopName } = req.body;
 
-        // get All tasks
-        app.get('/tasks', async (req, res) => {
-            const result = await taskCollection.find().toArray();
-            res.send(result)
-        })
+                if (!userName || !email || !password || !shopName || !Array.isArray(shopName) || shopName.length === 0) {
+                    return res.status(400).json({ message: 'Invalid input data' });
+                }
+
+                const conflict = await userCollection.findOne({
+                    shopName: { $in: shopName }
+                });
+
+                if (conflict) {
+                    return res.status(400).json({ message: 'One or more Shop Names already taken!' });
+                }
+
+                const result = await userCollection.insertOne({ userName, photoURL, email, password, shopName });
+                return res.status(200).json({ message: 'User created successfully', insertedId: result.insertedId });
+
+            } catch (error) {
+                console.error('Server error:', error);
+                return res.status(500).json({ message: 'Internal Server Error' });
+            }
+        });
+
+
 
         // get All users
         app.get('/users', async (req, res) => {
             const result = await userCollection.find().toArray();
             res.send(result)
         })
+
+
+
+
+
+
+
+
+
 
         // update task
         app.put('/task/:id', async (req, res) => {
@@ -122,6 +139,19 @@ async function run() {
             }
             const result = await notificationCollection.updateOne(filter, updateDoc);
             res.send(result);
+        })
+
+        // insert task
+        app.post('/task', async (req, res) => {
+            const reciveData = req.body;
+            const result = await taskCollection.insertOne(reciveData);
+            res.send(result);
+        })
+
+        // get All tasks
+        app.get('/tasks', async (req, res) => {
+            const result = await taskCollection.find().toArray();
+            res.send(result)
         })
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
