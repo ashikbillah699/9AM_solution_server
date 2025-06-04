@@ -1,13 +1,33 @@
-require('dotenv').config()
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+// const bcrypt = require('bcrypt');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
 const app = express();
-const cors = require("cors");
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+const allowedOrigins = ['http://localhost:5173'];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+            allowedOrigins.includes(origin) ||
+            /^https?:\/\/([a-z0-9-]+)\.localhost:5173$/.test(origin)
+        ) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.j8csd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -25,6 +45,49 @@ async function run() {
         const taskCollection = client.db("taskFlowDB").collection("tasks");
         const userCollection = client.db("taskFlowDB").collection("users");
         const notificationCollection = client.db("taskFlowDB").collection("notification");
+
+
+        // auth related API
+        // create token
+        app.post('/jwt', (req, res) => {
+            const { user, rememberMe } = req.body;
+            const expiresIn = rememberMe ? '7d' : '30m';
+            const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn })
+
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: false,
+                // domain: '.localhost',
+                maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000,
+                sameSite: 'lax'
+            }).send({ success: true })
+        })
+
+        // clear cooke
+        app.post('/logout', (req, res) => {
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax'
+                // domain: '.localhost'
+            }).send({ success: true })
+        })
+
+        // verify token
+        app.get('/verify', (req, res) => {
+            const token = req.cookies.token;
+
+            if (!token) {
+                return res.status(401).json({ message: 'No token found' });
+            }
+
+            jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).json({ message: 'Token invalid or expired' });
+                }
+                res.json({ user: decoded, message: 'Token valid' });
+            });
+        });
 
         // post User data 
         app.post('/user', async (req, res) => {
@@ -52,22 +115,11 @@ async function run() {
             }
         });
 
-
-
         // get All users
         app.get('/users', async (req, res) => {
             const result = await userCollection.find().toArray();
             res.send(result)
         })
-
-
-
-
-
-
-
-
-
 
         // update task
         app.put('/task/:id', async (req, res) => {
@@ -130,16 +182,17 @@ async function run() {
 
         // update notification isRate
         app.put('/notification/:id', async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) };
-            const updateDoc = {
-                $set: {
-                    isRead: true
-                }
+            try {
+                const id = req.params.id;
+                const filter = { _id: new ObjectId(id) };
+                const updateDoc = { $set: { isRead: true } };
+                const result = await notificationCollection.updateOne(filter, updateDoc);
+                res.send(result);
+            } catch (error) {
+                console.error('Update notification error:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
             }
-            const result = await notificationCollection.updateOne(filter, updateDoc);
-            res.send(result);
-        })
+        });
 
         // insert task
         app.post('/task', async (req, res) => {
